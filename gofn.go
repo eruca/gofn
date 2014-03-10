@@ -65,8 +65,12 @@ The arguments are:` + "\n\n\t[package.]Func\tfunction name with or not the packa
 	}
 
 	t := time.Now()
+	goroot := os.Getenv("GOROOT")
+	if len(goroot) == 0 {
+		log.Fatalln("the GOROOT is not set")
+	}
 
-	gopkg := filepath.Join(os.Getenv("GOROOT"), "src/pkg/", path)
+	gopkg := filepath.Join(goroot, "src/pkg/", path)
 
 	trace(findFunc(gopkg, name, bSame))
 
