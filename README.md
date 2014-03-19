@@ -17,7 +17,7 @@
 需要go install
 
 	gofn strings.Index
-
+	gofn bufio.Reader
 	gofn beego.Input
 
 希望：
