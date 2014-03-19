@@ -60,11 +60,14 @@ func main() {
 		log.Fatalln("the GOPATH is not set")
 	}
 
+	//这个是windows情况下，是不是linux或mac需要更改呢
+	//如果设置2个以上GOPATH，取第一个，因为go get 默认第一个
 	gopath = strings.Split(gopath, ";")[0]
 	gopath = filepath.Join(gopath, "/src")
 
 	wg := new(sync.WaitGroup)
 
+	//判断是否预先输入package
 	if len(pkg) != 0 {
 		var bFind bool
 		for _, v := range Stdpkgs {
@@ -98,15 +101,16 @@ func main() {
 
 	wg.Wait()
 
-	for _, v := range g_search.Finder {
-		if v != "" {
-			fmt.Println(v + "\n")
-		} else {
-			log.Printf("%s.%s is not found", pkg, name)
+	if len(g_search.Finder) == 1 {
+		fmt.Printf("%s.%s is not found\n", pkg, name)
+	} else {
+		for _, v := range g_search.Finder {
+			if v != "" {
+				fmt.Println(v + "\n")
+			}
 		}
 	}
-
-	log.Println("finish in ", time.Since(t))
+	log.Println("finished in ", time.Since(t))
 }
 
 func findInFile(path string, wg *sync.WaitGroup) {
@@ -129,13 +133,14 @@ func findInFile(path string, wg *sync.WaitGroup) {
 			if fileInfo.Name()[0] == '.' {
 				continue
 			}
-			// g_search.p.Send(filepath.Join(path, fileInfo.Name()))
 			wg.Add(1)
 			go findInFile(filepath.Join(path, fileInfo.Name()), wg)
 		}
 	} else if filepath.Ext(fi.Name()) == ".go" {
-		var lineno = 1
+		var lineno int
 		var bFind bool
+		var bCommet bool
+		var comment string
 		var line string
 
 		file, err := os.Open(path)
@@ -148,20 +153,34 @@ func findInFile(path string, wg *sync.WaitGroup) {
 
 		scanner := bufio.NewScanner(file)
 		for scanner.Scan() {
-			//line =""
 			line = scanner.Text()
 			lineno++
 			//switch line[0:5]{
 			//case "func ":
 			//case "type "}
-			if (len(line) > 9 && line[0:5] == "func ") || bFind {
+			if len(line) == 0 && !bFind {
+				bCommet = true
+				comment = ""
+				continue
+			} else if bCommet == true && len(line) > 2 && line[0:2] == "//" {
+				comment += line + "\n"
+				continue
+			}
+
+			if (len(line) > 9 && (line[0:5] == "func " || line[0:5] == "type ")) || bFind {
 				var left int
 				if !bFind {
-					left = strings.Index(line, " "+g_search.Name+"(")
+					switch line[0:5] {
+					case "func ":
+						left = strings.Index(line, " "+g_search.Name+"(")
+					case "type ":
+						left = strings.Index(line, " "+g_search.Name+" ")
+					}
 					if left == -1 {
 						continue
 					}
 					bFind = true
+					bCommet = false
 					result = append(result, path)
 					left++
 				}
@@ -186,6 +205,8 @@ func findInFile(path string, wg *sync.WaitGroup) {
 						}
 						if stack.bUse && stack.i == 0 {
 							bFind = false
+							//put commet add to the end
+							result = append(result, comment)
 							break
 						}
 					}
