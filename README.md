@@ -15,7 +15,9 @@
 
 尚不完善，可能有bug，尽请谅解
 需要go install
+
 	gofn strings.Index
+
 	gofn beego.Input
 
 希望：
