@@ -36,6 +36,7 @@ func main() {
 	//runtime.GOMAXPROCS(runtime.NumCPU())
 
 	var pkg, name string
+	//需要处理有参数的情况，如果没有可能会panic
 	pkgAndName := strings.Split(os.Args[1], ".")
 
 	if len(pkgAndName) == 0 || len(pkgAndName) > 2 {
@@ -85,10 +86,13 @@ func main() {
 			SearchInGoPath(gopath)
 			if len(g_find.find) != 0 {
 				g_search.Finder = append(g_search.Finder, "\n------------The 3rd Package------------")
+			} else {
+				fmt.Printf("the package %q is not find in std or 3rd package\n", pkg)
+				log.Fatalln("finished in ", time.Since(t))
 			}
 			for _, v := range g_find.find {
 				//log. the find path in the 3rd pkgs............................ need to be there
-				//log.Println(v)
+				log.Println(v)
 
 				wg.Add(1)
 				go findInFile(v, wg)
@@ -142,6 +146,7 @@ func findInFile(path string, wg *sync.WaitGroup) {
 		var bCommet bool
 		var comment string
 		var line string
+		var bTypefunc bool
 
 		file, err := os.Open(path)
 		if err != nil {
@@ -170,19 +175,34 @@ func findInFile(path string, wg *sync.WaitGroup) {
 				if !bFind {
 					switch line[0:5] {
 					case "func ":
-						left = strings.Index(line, " "+g_search.Name+"(")
+						if left = strings.Index(line, " "+g_search.Name+"("); left == -1 {
+							continue
+						}
 					case "type ":
-						left = strings.Index(line, " "+g_search.Name+" ")
+						if left = strings.Index(line, " "+g_search.Name+" struct"); left == -1 {
+							if left = strings.Index(line, " "+g_search.Name+" interface"); left == -1 {
+								if left = strings.Index(line, " "+g_search.Name+" func("); left == -1 {
+									continue
+								} else {
+									bTypefunc = true
+								}
+							}
+						}
+
 					}
-					if left == -1 {
-						continue
-					}
+
 					bFind = true
 					bCommet = false
 					result = append(result, path)
 					left++
 				}
 				result = append(result, fmt.Sprintf("%d:%s", lineno, line))
+
+				if bTypefunc {
+					bFind = false
+					result = append(result, comment)
+					continue
+				}
 
 				for _, v := range line[left:] {
 					switch v {
@@ -253,41 +273,4 @@ func SearchInGoPath(root string) {
 			SearchInGoPath(filepath.Join(root, fileInfo.Name()))
 		}
 	}
-}
-
-func trace(err error) bool {
-	if err != nil {
-		log.Println(err)
-		return true
-	}
-	return false
-}
-
-const (
-	T_parenthesis = 1
-	T_brace       = 2
-)
-
-type Stack struct {
-	i    int
-	data []int
-	bUse bool
-}
-
-func (s *Stack) push(n int) {
-	if s.i+1 > len(s.data) {
-		sint := make([]int, len(s.data))
-		s.data = append(sint, s.data...)
-		s.data = append(s.data, n)
-	} else {
-		s.data[s.i] = n
-	}
-	s.i++
-}
-
-func (s *Stack) pop() (n int) {
-	n = s.data[s.i-1]
-	s.data[s.i-1] = 0
-	s.i--
-	return
 }
