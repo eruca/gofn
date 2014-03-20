@@ -155,9 +155,7 @@ func findInFile(path string, wg *sync.WaitGroup) {
 		for scanner.Scan() {
 			line = scanner.Text()
 			lineno++
-			//switch line[0:5]{
-			//case "func ":
-			//case "type "}
+
 			if len(line) == 0 && !bFind {
 				bCommet = true
 				comment = ""
@@ -203,7 +201,7 @@ func findInFile(path string, wg *sync.WaitGroup) {
 						if stack.pop() != T_brace {
 							log.Fatalln("the 'brace' not used in couple")
 						}
-						if stack.bUse && stack.i == 0 {
+						if stack.bUse && stack.i == 0 && line[len(line)-1] == '}' {
 							bFind = false
 							//put commet add to the end
 							result = append(result, comment)
