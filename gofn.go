@@ -72,13 +72,25 @@ func main() {
 	if len(pkg) != 0 {
 		var bFind bool
 		for _, v := range Stdpkgs {
-			if v == pkg || strings.HasSuffix(v, pkg) {
+			if v == pkg {
 				g_search.Finder = append(g_search.Finder, "\n------------Standard Package------------")
 				bFind = true
 
 				wg.Add(1)
 				go findInFile(filepath.Join(goroot, v), wg)
 				break
+			}
+		}
+		if !bFind {
+			for _, v := range Stdpkgs {
+				if strings.HasSuffix(v, pkg) {
+					g_search.Finder = append(g_search.Finder, "\n------------Standard Package------------")
+					bFind = true
+
+					wg.Add(1)
+					go findInFile(filepath.Join(goroot, v), wg)
+					break
+				}
 			}
 		}
 		if !bFind {
@@ -92,7 +104,7 @@ func main() {
 			}
 			for _, v := range g_find.find {
 				//log. the find path in the 3rd pkgs............................ need to be there
-				log.Println(v)
+				//log.Println(v)
 
 				wg.Add(1)
 				go findInFile(v, wg)
@@ -188,7 +200,6 @@ func findInFile(path string, wg *sync.WaitGroup) {
 								}
 							}
 						}
-
 					}
 
 					bFind = true
@@ -196,8 +207,16 @@ func findInFile(path string, wg *sync.WaitGroup) {
 					result = append(result, path)
 					left++
 				}
-				result = append(result, fmt.Sprintf("%d:%s", lineno, line))
 
+				//如果函数、结构、接口内部有注释，直接跳过
+				//因为reflect Type接口第43句，有注释使用中括号和小括号不对，所以才选择跳过，注释不严谨
+				result = append(result, fmt.Sprintf("%d:%s", lineno, line))
+				if s := strings.TrimSpace(line); len(s) > 2 && s[:2] == "//" {
+					continue
+				}
+
+				//如果是定义函数别名，如 type SplitFunc func()()
+				//考虑一般为自成一行
 				if bTypefunc {
 					bFind = false
 					result = append(result, comment)
@@ -209,6 +228,7 @@ func findInFile(path string, wg *sync.WaitGroup) {
 					case '(':
 						stack.push(T_parenthesis)
 					case ')':
+						//test
 						if stack.pop() != T_parenthesis {
 							log.Fatalln("the 'parentheis' not used in couple!")
 						}
