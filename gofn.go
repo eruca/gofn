@@ -1,5 +1,6 @@
 //多纤程版本，可是在runtime.GOMAXPROCS()不调用的时候性能更高
 //那就写一个单线程的吧
+//后面再写一个线程池，再将代码的性能提高一下
 package main
 
 import (
@@ -9,7 +10,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	//"runtime"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -31,16 +32,68 @@ type FindPath struct {
 var g_search = &Search{Finder: make([]string, 0, 256), Mutex: new(sync.Mutex)}
 var g_find = &FindPath{find: make([]string, 0, 32)}
 
+const version = 0.10
+
+//文件是否输出到文件
+//多次使用了flag包，可是都没有成功，主要是不会，如果有高手能改成更为优雅，多谢啊
+var out bool
+
+//是否有第四个参数，为绝对路径（文件直接向该文件输出）
+var bFour bool
+
+//默认文件，1st GOPATH/src/gofn/result.go
+var result string = "result.go"
+
+func help() {
+	fmt.Println("gofn version:", version)
+	fmt.Println("Usage:gofn pkg.func out [file] ")
+	fmt.Println("the 'pkg' contain std or 3rd in 1st GOPATH; func contain func interface struct; | default will be to 1st GOPATH/src/gofn")
+}
+
+func gohelp(slice []string) int {
+	switch len(slice) {
+	case 1:
+		help()
+		os.Exit(2)
+	case 2:
+		if slice[1] == "-help" || slice[1] == "--help" {
+			help()
+			os.Exit(2)
+		}
+		return 2
+	case 3:
+		if slice[2] != "out" {
+			help()
+		}
+		out = true
+		return 3
+	case 4:
+		if slice[2] != "out" || !filepath.IsAbs(slice[3]) {
+			help()
+			os.Exit(2)
+		}
+		out = true
+		bFour = true
+		result = os.Args[3]
+		return 4
+	default:
+		help()
+	}
+	return -1
+}
+
 func main() {
 	t := time.Now()
 	//runtime.GOMAXPROCS(runtime.NumCPU())
+	gohelp(os.Args)
 
 	var pkg, name string
-	//需要处理有参数的情况，如果没有可能会panic
 	pkgAndName := strings.Split(os.Args[1], ".")
 
 	if len(pkgAndName) == 0 || len(pkgAndName) > 2 {
-		log.Fatalln("the param 1 is not in right fomat")
+		log.Println("the param 1 is not in right fomat")
+		help()
+		os.Exit(2)
 	} else if len(pkgAndName) == 1 {
 		name = pkgAndName[0]
 	} else {
@@ -50,20 +103,20 @@ func main() {
 
 	g_search.Name = name
 
-	goroot := os.Getenv("GOROOT")
-	if len(goroot) == 0 {
-		log.Fatalln("the GOROOT is not set")
-	}
-	goroot = filepath.Join(goroot, "src/pkg/")
+	goroot := filepath.Join(runtime.GOROOT(), "src/pkg/")
 
 	gopath := os.Getenv("GOPATH")
 	if gopath == "" {
 		log.Fatalln("the GOPATH is not set")
 	}
 
-	//这个是windows情况下，是不是linux或mac需要更改呢
 	//如果设置2个以上GOPATH，取第一个，因为go get 默认第一个
-	gopath = strings.Split(gopath, ";")[0]
+	switch runtime.GOOS {
+	case "darwin", "linux", "openbsd", "freebsd":
+		gopath = strings.Split(gopath, ":")[0]
+	case "windows":
+		gopath = strings.Split(gopath, ";")[0]
+	}
 	gopath = filepath.Join(gopath, "/src")
 
 	wg := new(sync.WaitGroup)
@@ -72,8 +125,8 @@ func main() {
 	if len(pkg) != 0 {
 		var bFind bool
 		for _, v := range Stdpkgs {
-			if v == pkg {
-				g_search.Finder = append(g_search.Finder, "\n------------Standard Package------------")
+			if v == pkg || strings.HasSuffix(v, "/"+pkg) {
+				g_search.Finder = append(g_search.Finder, "\n//------------Standard Package------------")
 				bFind = true
 
 				wg.Add(1)
@@ -81,29 +134,18 @@ func main() {
 				break
 			}
 		}
-		if !bFind {
-			for _, v := range Stdpkgs {
-				if strings.HasSuffix(v, pkg) {
-					g_search.Finder = append(g_search.Finder, "\n------------Standard Package------------")
-					bFind = true
 
-					wg.Add(1)
-					go findInFile(filepath.Join(goroot, v), wg)
-					break
-				}
-			}
-		}
 		if !bFind {
 			g_find.targetPkg = pkg
 			SearchInGoPath(gopath)
 			if len(g_find.find) != 0 {
-				g_search.Finder = append(g_search.Finder, "\n------------The 3rd Package------------")
+				g_search.Finder = append(g_search.Finder, "\n//------------The 3rd Package------------")
 			} else {
 				fmt.Printf("the package %q is not find in std or 3rd package\n", pkg)
 				log.Fatalln("finished in ", time.Since(t))
 			}
 			for _, v := range g_find.find {
-				//log. the find path in the 3rd pkgs............................ need to be there
+				//find will present all the path found
 				//log.Println(v)
 
 				wg.Add(1)
@@ -117,15 +159,37 @@ func main() {
 
 	wg.Wait()
 
-	if len(g_search.Finder) == 1 {
-		fmt.Printf("%s.%s is not found\n", pkg, name)
-	} else {
-		for _, v := range g_search.Finder {
-			if v != "" {
-				fmt.Println(v + "\n")
+	switch len(g_search.Finder) {
+	case 0:
+		fmt.Printf("%q is not found in std package\n", name)
+	case 1:
+		fmt.Printf("\"%s.%s\" is not found\n", pkg, name)
+	default:
+		find := strings.Join(g_search.Finder, "\n\n")
+
+		if out {
+			var file *os.File
+			var err error
+			if !bFour {
+				fp := filepath.Join(gopath, "/gofn")
+				if !isExist(fp) {
+					os.MkdirAll(filepath.Dir(fp), os.ModePerm)
+				}
+				file, err = os.Create(filepath.Join(fp, result))
+			} else {
+				file, err = os.Create(result)
 			}
+			if err != nil {
+				log.Println("create stream out file faild")
+			}
+			defer file.Close()
+
+			file.WriteString(find)
+		} else {
+			fmt.Print(find)
 		}
 	}
+
 	log.Println("finished in ", time.Since(t))
 }
 
@@ -210,7 +274,12 @@ func findInFile(path string, wg *sync.WaitGroup) {
 
 				//如果函数、结构、接口内部有注释，直接跳过
 				//因为reflect Type接口第43句，有注释使用中括号和小括号不对，所以才选择跳过，注释不严谨
-				result = append(result, fmt.Sprintf("%d:%s", lineno, line))
+				if out {
+					result = append(result, line)
+				} else {
+					result = append(result, fmt.Sprintf("%d:%s", lineno, line))
+				}
+
 				if s := strings.TrimSpace(line); len(s) > 2 && s[:2] == "//" {
 					continue
 				}

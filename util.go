@@ -1,5 +1,9 @@
 package main
 
+import (
+	"os"
+)
+
 const (
 	T_parenthesis = 1
 	T_brace       = 2
@@ -27,4 +31,11 @@ func (s *Stack) pop() (n int) {
 	s.data[s.i-1] = 0
 	s.i--
 	return
+}
+
+//util func
+
+func isExist(file string) bool {
+	_, err := os.Stat(file)
+	return err == nil || os.IsExist(err)
 }
