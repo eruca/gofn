@@ -17,8 +17,6 @@
 
 	go get github.com/eruca/gofn
 
-现在已经拆分为2个文件，所以命令行转到eruca文件夹下，执行 go install gofn
-
 	gofn strings.Index
 	gofn bufio.Reader
 	gofn bufio.SplitFunc

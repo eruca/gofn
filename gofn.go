@@ -72,7 +72,7 @@ func main() {
 	if len(pkg) != 0 {
 		var bFind bool
 		for _, v := range Stdpkgs {
-			if v == pkg {
+			if v == pkg || strings.HasSuffix(v, "/"+pkg) {
 				g_search.Finder = append(g_search.Finder, "\n------------Standard Package------------")
 				bFind = true
 
@@ -81,18 +81,7 @@ func main() {
 				break
 			}
 		}
-		if !bFind {
-			for _, v := range Stdpkgs {
-				if strings.HasSuffix(v, pkg) {
-					g_search.Finder = append(g_search.Finder, "\n------------Standard Package------------")
-					bFind = true
-
-					wg.Add(1)
-					go findInFile(filepath.Join(goroot, v), wg)
-					break
-				}
-			}
-		}
+		
 		if !bFind {
 			g_find.targetPkg = pkg
 			SearchInGoPath(gopath)
