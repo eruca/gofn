@@ -4,7 +4,7 @@
 package main
 
 import (
-	"flag"
+	// "flag"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -23,7 +23,7 @@ func get_executable_filename() string {
 		cwd, _ := os.Getwd()
 		path = filepath.Join(cwd, path)
 	}
-	if file_exists(path) {
+	if is_exist(path) {
 		return path
 	}
 	// Fallback : use "gocode" and assume we are in the PATH...
@@ -36,8 +36,8 @@ func get_executable_filename() string {
 
 // config location
 
-func config_dir() string {
-	return filepath.Join(home_dir(), "gofn")
+func home_dir() string {
+	return filepath.Join(os.Getenv("HOME"), ".config")
 }
 
 func config_file() string {
