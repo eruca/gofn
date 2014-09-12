@@ -17,7 +17,7 @@ var (
 	gopaths  = get_gopaths()
 
 	findpkgs int32
-	wg       = &sync.WaitGroup{}
+	g_wg     = &sync.WaitGroup{}
 )
 
 var (
@@ -35,7 +35,7 @@ var (
 )
 
 func init() {
-	runtime.GOMAXPROCS(g_numCPU)
+	//runtime.GOMAXPROCS(g_numCPU)
 
 	g_st, err = read_from_file(config_file())
 	if err != nil {

@@ -56,6 +56,7 @@ func new_reader(c_query_reader chan string, f_query_reader chan int32) {
 				atomic.StoreInt32(&send_in_count, 0)
 				atomic.StoreInt32(&send_gofiles, -1)
 				//rewrite the storage if anything update
+				g_wg.Add(1)
 				c_storage_rewrite <- true
 			}
 		}

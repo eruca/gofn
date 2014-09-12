@@ -20,17 +20,58 @@ func main() {
 	once(t)
 
 	//wait for the rewrite of the configfile.
-	wg.Wait()
+	g_wg.Wait()
 }
 
 func once(t time.Time) int {
 	query.set(os.Args[1:])
 	count := lookup()
 
+	//test
+	//log.Println("in once", count)
+
 	if check_return(count) {
 		log.Println("======== find sum(", count, ") finished in", time.Since(t), "========")
 	}
 	return 0
+}
+
+func lookup() int {
+	c_main_query <- query.pkg
+	cnt := <-c_scan_main
+
+	return int(cnt)
+}
+
+func check_return(count int) bool {
+	//if find nothing, new_storage will scan the goroot && gopaths again with newest data
+	if count == 0 && findpkgs == 0 {
+		g_st = new_storage()
+		count = lookup()
+		if count != 0 {
+			g_wg.Add(1)
+			g_st.rewrite = true
+
+			c_storage_rewrite <- true
+			return true
+		}
+		fmt.Fprintln(query.out,
+			colorstring.Color(fmt.Sprintf("[yellow]can't find [red]%q [yellow]in the GOROOT && GOPATHS", query.pkg)))
+
+		rcmd := g_st.recomand(query.pkg)
+		if rcmd != nil {
+			fmt.Fprintln(query.out, colorstring.Color("[cyan]it maybe to be:"))
+			for k, v := range rcmd {
+				fmt.Fprintf(query.out, colorstring.Color(fmt.Sprintf("[green]%q\t[yellow]----%s\n", diff(query.pkg, v.name), v.path)))
+				if k > 10 {
+					break
+				}
+			}
+		}
+
+		return false
+	}
+	return true
 }
 
 // func more() int {
@@ -72,38 +113,3 @@ func once(t time.Time) int {
 // 	}
 // 	return 0
 // }
-
-func lookup() int {
-	c_main_query <- query.pkg
-	count := <-c_scan_main
-
-	return int(count)
-}
-
-func check_return(count int) bool {
-	//if find nothing, new_storage will scan the goroot && gopaths again with newest data
-	if count == 0 && findpkgs == 0 {
-		g_st = new_storage()
-		count = lookup()
-		if count != 0 {
-			c_storage_rewrite <- true
-			return true
-		}
-		fmt.Fprintln(query.out,
-			colorstring.Color(fmt.Sprintf("[yellow]can't find [red]%q [yellow]in the GOROOT && GOPATHS", query.pkg)))
-
-		rcmd := g_st.recomand(query.pkg)
-		if rcmd != nil {
-			fmt.Fprintln(query.out, colorstring.Color("[cyan]it maybe to be:"))
-			for k, v := range rcmd {
-				fmt.Fprintf(query.out, colorstring.Color(fmt.Sprintf("[green]%q\t[yellow]----%s\n", diff(query.pkg, v.name), v.path)))
-				if k > 10 {
-					break
-				}
-			}
-		}
-
-		return false
-	}
-	return true
-}

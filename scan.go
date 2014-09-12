@@ -20,8 +20,6 @@ import (
 
 func scan(c_reader_scan chan *io_resp, f_reader_scan chan int32) {
 	var finds_count int32
-	//test
-	// var test2 int32
 	var mutex = sync.RWMutex{}
 
 	var send_in_count, all int32 = 0, -1
@@ -48,7 +46,12 @@ func scan(c_reader_scan chan *io_resp, f_reader_scan chan int32) {
 					}
 
 					if vi.finds != nil {
+						//test
+						//log.Println(len(vi.finds))
+
 						atomic.AddInt32(&finds_count, int32(len(vi.finds)))
+
+						//log.Println("finds_count", finds_count)
 
 						sort.Sort(Finds(vi.finds))
 
@@ -77,6 +80,7 @@ func scan(c_reader_scan chan *io_resp, f_reader_scan chan int32) {
 				if send_in_count == all {
 					// log.Println("scan finished================", finds_count, all)
 					// log.Println("send_in_count:", send_in_count)
+					//log.Println(2, "finds_count", finds_count)
 
 					c_scan_main <- finds_count
 					atomic.StoreInt32(&send_in_count, 0)

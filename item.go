@@ -73,6 +73,10 @@ func (this *item) query(pkg string, folds *int32, p2p *safemap, cin chan<- strin
 
 	if this.Name == pkg || pkg == "" {
 		dir := this.path(p2p)
+
+		//test
+		//log.Println("query dir", dir)
+
 		atomic.AddInt32(&findpkgs, 1)
 
 		if query.name == "" && query.stru == "" {

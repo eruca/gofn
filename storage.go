@@ -41,6 +41,8 @@ func new_storage() *storage {
 
 	st := &storage{Tries: tries, to_update: to_update, signal_close: signal_close}
 
+	st.rewrite = g_st.rewrite
+
 	st.write()
 	st.query(c_main_query)
 
@@ -151,7 +153,7 @@ func (this *storage) write() {
 		for {
 			select {
 			case <-c_storage_rewrite:
-				wg.Add(1)
+				//wg.Add(1)
 				for k, v := range this.to_update {
 					if v {
 						this.rewrite = true
@@ -160,9 +162,7 @@ func (this *storage) write() {
 				}
 
 				if !this.rewrite {
-					//test
-					// log.Println("nothing changed!")
-					wg.Done()
+					g_wg.Done()
 					continue
 				}
 
@@ -185,14 +185,14 @@ func (this *storage) write() {
 					panic(err.Error())
 				}
 
-				//test
-				// log.Println("rewrite the config file")
-
 				_, err = file.Write(b)
 				if err != nil {
 					panic(err.Error())
 				}
-				wg.Done()
+
+				log.Println("rewrite the config file")
+
+				g_wg.Done()
 			case <-this.signal_close:
 				return
 			}
@@ -218,7 +218,7 @@ func (this *storage) query(c_main_query chan string) {
 	var folds, tackled, folds_final int32 = 0, 0, -1
 
 	for i := 0; i < g_numCPU; i++ {
-		//1 goroutine
+		//1st goroutine
 		go func() {
 			var father string
 			var index int = -1
@@ -231,8 +231,6 @@ func (this *storage) query(c_main_query chan string) {
 					if !ok {
 						break
 					}
-					//test
-					// log.Println(dir)
 
 					if strings.HasPrefix(dir, father) || father == "" {
 						for k, v := range gopaths {
@@ -279,11 +277,13 @@ func (this *storage) query(c_main_query chan string) {
 
 				//2种情况
 				//
-				//1.路径先发完，folds_final转变。2.路径已处理完，路径还没找完（最后不符合的文件.js .html多）
+				//1.路径先发完，folds_final转变。2.文件已处理完，路径还没找完（最后不符合的文件.js .html多）
 				//针对1情况基本不会有问题，最后一个路径处理好，那么两者的数字会相等
 				//第2种情况，文件处理好，folds_final还没有转变，就死锁，那么a可以保持在folds_final转变后
 				//再询问一次两者是否相等，如果相等那就返回
 				case <-a:
+					//log.Println("tackled", tackled)
+					//log.Println("folds_final", folds_final)
 				case <-this.signal_close:
 					return
 				}
@@ -298,7 +298,7 @@ func (this *storage) query(c_main_query chan string) {
 		}()
 	}
 
-	//2 goroutine
+	//2nd goroutine
 	go func() {
 		w := &sync.WaitGroup{}
 		for {
@@ -316,6 +316,7 @@ func (this *storage) query(c_main_query chan string) {
 
 				w.Wait()
 				atomic.StoreInt32(&folds_final, folds)
+
 				a <- true
 
 				//wait for 1 goroutine
@@ -326,7 +327,8 @@ func (this *storage) query(c_main_query chan string) {
 					c_scan_main <- 0
 				} else {
 					//test
-					// log.Println("send gofiles:", send_gofiles)
+					//log.Println("send gofiles:", send_gofiles)
+
 					f_query_reader <- send_gofiles
 					atomic.StoreInt32(&send_gofiles, 0)
 				}
