@@ -35,7 +35,7 @@ var (
 )
 
 func init() {
-	//runtime.GOMAXPROCS(g_numCPU)
+	runtime.GOMAXPROCS(g_numCPU)
 
 	g_st, err = read_from_file(config_file())
 	if err != nil {
