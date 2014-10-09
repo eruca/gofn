@@ -41,7 +41,7 @@ func new_storage() *storage {
 
 	st := &storage{Tries: tries, to_update: to_update, signal_close: signal_close}
 
-	st.rewrite = g_st.rewrite
+	//st.rewrite = g_st.rewrite
 
 	st.write()
 	st.query(c_main_query)
